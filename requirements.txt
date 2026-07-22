@@ -1,0 +1,25 @@
+# --- Lõi (bắt buộc) ---
+numpy
+opencv-python-headless
+pillow
+PyMuPDF            # đọc PDF -> ảnh (không cần poppler)
+pdfplumber         # trích gold từ PDF gốc digital
+gradio>=4.0        # UI test
+
+# --- Lớp 1: OCR truyền thống ---
+paddlepaddle-gpu   # Colab GPU. Máy CPU: đổi thành `paddlepaddle`
+paddleocr          # PaddleOCR + PP-Structure (detection/layout/table)
+vietocr            # recognizer tiếng Việt
+
+# --- Lớp 2: Vision-LLM self-host (escalation) ---
+transformers>=4.49
+accelerate
+qwen-vl-utils
+bitsandbytes       # quantize 4-bit cho Colab T4
+torch
+
+# --- Lớp 3: sửa tiếng Việt (ProtonX / bmd1905) ---
+sentencepiece
+
+# --- Tuỳ chọn ---
+# pdf2image        # fallback nếu không dùng PyMuPDF (cần poppler-utils hệ thống)
