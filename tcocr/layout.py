@@ -14,18 +14,35 @@ from .types import BoundingBox, Region, RegionType, Table, TableCell
 
 
 class LayoutAnalyzer:
-    def __init__(self, lang: str = "vi", use_structure: bool = True, **kwargs):
+    """Chia trang thành vùng. Mặc định TẮT PP-Structure vì:
+    - Trên Colab, PP-Structure init PaddleX lần 2 -> lỗi "PDX already initialized".
+    - PP-Structure 3.x + Python 3.12 hay kỵ nhau.
+    Khi tắt: cả trang = 1 vùng TEXT (vẫn OCR được chữ trong bảng, chỉ mất cấu trúc ô;
+    cấu trúc bảng để lớp 2 VLM lo). Bật lại bằng enable_layout_structure=True khi
+    môi trường đã dựng được PP-Structure ổn định (thường là on-prem)."""
+
+    def __init__(self, lang: str = "vi", use_structure: bool = False, **kwargs):
         self._engine = None
         self._fallback = True
         if use_structure:
-            try:
-                from paddleocr import PPStructure
+            self._engine = self._try_build_structure(**kwargs)
+            self._fallback = self._engine is None
 
-                self._engine = PPStructure(show_log=False, lang="en", **kwargs)
-                self._fallback = False
-            except Exception:
-                self._engine = None
-                self._fallback = True
+    @staticmethod
+    def _try_build_structure(**kwargs):
+        # 3.x: PPStructureV3 ; 2.x: PPStructure
+        try:
+            from paddleocr import PPStructureV3
+
+            return PPStructureV3(**kwargs)
+        except Exception:
+            pass
+        try:
+            from paddleocr import PPStructure
+
+            return PPStructure(show_log=False, lang="en", **kwargs)
+        except Exception:
+            return None
 
     @staticmethod
     def _bbox_from_list(b) -> BoundingBox:

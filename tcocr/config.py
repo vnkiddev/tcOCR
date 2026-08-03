@@ -32,6 +32,11 @@ class PipelineConfig:
     # CHỈ sửa text diễn giải, KHÔNG đụng số/bảng/mã
     correction_skip_numeric: bool = True
 
+    # ---- Layout ----
+    # PP-Structure: mặc định TẮT (né lỗi init lần 2 trên Colab). Bật khi on-prem
+    # đã dựng được PP-Structure -> có tách cấu trúc bảng ở lớp 1.
+    enable_layout_structure: bool = False
+
     # ---- Validation nghiệp vụ ----
     enable_validation: bool = True
     stock_code_whitelist_path: str = ""  # file danh sách mã CK (mỗi dòng 1 mã)

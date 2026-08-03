@@ -66,6 +66,17 @@ PipelineConfig(
    Data thật của khách → chạy **on-prem** (self-host VLM hoặc API nội bộ của ANTT qua
    `private_api` backend). Không đẩy data thật qua bên thứ ba.
 
+## Khắc phục sự cố (Colab)
+
+- **`PDX has already been initialized`**: PaddleOCR 3.x chỉ init 1 lần/process. Code đã
+  dùng singleton để tránh, nhưng nếu vẫn gặp (do lần chạy trước lỗi dở): **Runtime →
+  Restart session** rồi chạy lại từ đầu, đừng chạy OCR 2 lần trước khi restart.
+- **PaddleOCR 3.x vs 2.x**: code tự nhận diện phiên bản (`tcocr/ocr/_paddle.py`), không
+  cần pin. Chạy được với bản Colab cài mặc định.
+- **PP-Structure (tách cấu trúc bảng) mặc định TẮT** trên Colab (né init lần 2 + kỵ
+  Python 3.12). Bật bằng `PipelineConfig(enable_layout_structure=True)` khi on-prem đã
+  dựng ổn định. Khi tắt, chữ trong bảng vẫn được OCR (chỉ mất lưới ô — để lớp 2 VLM lo).
+
 ## Cấu trúc mã
 
 ```

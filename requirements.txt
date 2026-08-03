@@ -8,7 +8,7 @@ gradio>=4.0        # UI test
 
 # --- Lớp 1: OCR truyền thống ---
 paddlepaddle-gpu   # Colab GPU. Máy CPU: đổi thành `paddlepaddle`
-paddleocr          # PaddleOCR + PP-Structure (detection/layout/table)
+paddleocr          # code hỗ trợ cả API 2.x lẫn 3.x (xem tcocr/ocr/_paddle.py)
 vietocr            # recognizer tiếng Việt
 
 # --- Lớp 2: Vision-LLM self-host (escalation) ---

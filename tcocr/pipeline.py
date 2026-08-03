@@ -55,7 +55,7 @@ class OCRPipeline:
                 cfg.correction_backend, **cfg.correction_kwargs
             )
         if self._layout is None:
-            self._layout = LayoutAnalyzer(use_structure=True)
+            self._layout = LayoutAnalyzer(use_structure=cfg.enable_layout_structure)
         if self._stock_whitelist is None and cfg.stock_code_whitelist_path:
             self._stock_whitelist = _load_whitelist(cfg.stock_code_whitelist_path)
 
