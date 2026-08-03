@@ -7,7 +7,8 @@ pdfplumber         # trích gold từ PDF gốc digital
 gradio>=4.0        # UI test
 
 # --- Lớp 1: OCR truyền thống ---
-paddlepaddle-gpu   # Colab GPU. Máy CPU: đổi thành `paddlepaddle`
+paddlepaddle       # CPU: chắc ăn trên Colab/py3.12. Production on-prem có GPU:
+                   #   dùng paddlepaddle-gpu từ index chính chủ của Paddle cho đúng CUDA.
 paddleocr          # code hỗ trợ cả API 2.x lẫn 3.x (xem tcocr/ocr/_paddle.py)
 vietocr            # recognizer tiếng Việt
 

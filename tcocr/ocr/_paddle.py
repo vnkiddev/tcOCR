@@ -38,10 +38,22 @@ def get_engine(lang: str = "vi", use_angle: bool = True, det_only: bool = False)
         return _INSTANCES[key]
 
     try:
-        from paddleocr import PaddleOCR
-    except ImportError as e:  # pragma: no cover
+        import paddle  # framework — thường là thủ phạm khi "cài rồi vẫn báo thiếu"
+    except Exception as e:  # pragma: no cover
         raise ImportError(
-            "Chưa cài PaddleOCR. Colab: `pip install paddleocr paddlepaddle` (xem notebook)."
+            f"Không import được paddlepaddle ({type(e).__name__}: {e}).\n"
+            "Trên Colab dùng bản CPU cho chắc (paddlepaddle-gpu trên PyPI hay lỗi build):\n"
+            "  1) !pip uninstall -y paddlepaddle-gpu paddlepaddle\n"
+            "  2) !pip install paddlepaddle paddleocr\n"
+            "  3) Runtime -> Restart session, rồi chạy lại từ đầu."
+        ) from e
+
+    try:
+        from paddleocr import PaddleOCR
+    except Exception as e:  # pragma: no cover
+        raise ImportError(
+            f"Không import được PaddleOCR ({type(e).__name__}: {e}).\n"
+            "Thử: !pip install -U paddleocr rồi Runtime -> Restart session."
         ) from e
 
     if paddle_version_major() >= 3:
