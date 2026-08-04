@@ -20,22 +20,30 @@ from tcocr.ocr import AVAILABLE_OCR_BACKENDS
 from tcocr.pipeline import OCRPipeline
 from tcocr.types import RegionType
 
-# cache pipeline theo "chữ ký" config để đổi backend mới nạp lại
+# Cache pipeline theo BACKEND (thứ nạp model, đắt). Threshold/validation chỉ là
+# tham số routing -> mutate config trên pipeline đã cache, KHÔNG rebuild
+# (rebuild = nạp lại VietOCR/ProtonX từ đầu mỗi lần kéo slider).
 _CACHE = {"key": None, "pipeline": None}
 
 
 def _get_pipeline(cfg: PipelineConfig) -> OCRPipeline:
-    key = (
-        cfg.ocr_backend,
-        cfg.escalation_backend,
-        cfg.correction_backend,
-        cfg.escalate_confidence_threshold,
-        cfg.enable_validation,
-    )
+    key = (cfg.ocr_backend, cfg.escalation_backend, cfg.correction_backend)
     if _CACHE["key"] != key:
         _CACHE["pipeline"] = OCRPipeline(cfg, lazy=True)
         _CACHE["key"] = key
-    return _CACHE["pipeline"]
+    pipe: OCRPipeline = _CACHE["pipeline"]
+    pipe.config.escalate_confidence_threshold = cfg.escalate_confidence_threshold
+    pipe.config.enable_validation = cfg.enable_validation
+    return pipe
+
+
+def _file_path(f) -> str:
+    """Gradio File: bản cũ trả object có .name, bản 4/5 trả thẳng str path."""
+    return f.name if hasattr(f, "name") else str(f)
+
+
+def _md_escape(s: str) -> str:
+    return (s or "").replace("|", "\\|")
 
 
 def _render_page(page) -> str:
@@ -47,10 +55,10 @@ def _render_page(page) -> str:
         if r.table is not None:
             grid = r.table.to_matrix()
             if grid:
-                out.append("| " + " | ".join(grid[0]) + " |")
+                out.append("| " + " | ".join(_md_escape(c) for c in grid[0]) + " |")
                 out.append("|" + "---|" * len(grid[0]))
                 for row in grid[1:]:
-                    out.append("| " + " | ".join(row) + " |")
+                    out.append("| " + " | ".join(_md_escape(c) for c in row) + " |")
         for ln in r.lines:
             tag = "🤖" if ln.source == "vlm" else ("✍️" if ln.source == "correction" else "")
             out.append(f"- {tag} {ln.text}  `({ln.confidence:.2f})`")
@@ -84,7 +92,7 @@ def run_ocr(
         pipeline = _get_pipeline(cfg)
 
         if file_obj is not None:
-            path = file_obj.name if hasattr(file_obj, "name") else str(file_obj)
+            path = _file_path(file_obj)
             if path.lower().endswith(".pdf"):
                 doc = pipeline.process_pdf(path)
                 return "\n\n---\n\n".join(_render_page(p) for p in doc.pages)
@@ -111,7 +119,7 @@ def run_benchmark(scan_pdf, gold_pdf, ocr_backend, escalation_backend, correctio
         pipeline = _get_pipeline(cfg)
         if scan_pdf is None or gold_pdf is None:
             return "⚠️ Cần cả PDF scan và PDF gốc (digital) để chấm điểm field-level."
-        report = run_pair(pipeline, scan_pdf.name, gold_pdf.name)
+        report = run_pair(pipeline, _file_path(scan_pdf), _file_path(gold_pdf))
         return report.to_markdown()
     except Exception:
         return f"❌ Lỗi:\n```\n{traceback.format_exc()}\n```"

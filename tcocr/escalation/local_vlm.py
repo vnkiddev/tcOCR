@@ -39,6 +39,10 @@ class LocalVLMBackend(EscalationBackend):
         device: str = "cuda",
         max_new_tokens: int = 1536,
         load_in_4bit: bool = True,
+        # Giới hạn vision token — QUAN TRỌNG trên T4 16GB: trang A4 200dpi mà không
+        # giới hạn sẽ sinh cả chục nghìn token -> OOM. 1024*28*28 ≈ 1024 token/ảnh.
+        max_pixels: int = 1024 * 28 * 28,
+        min_pixels: int = 256 * 28 * 28,
         **kwargs,
     ):
         self.model_id = model_id
@@ -72,7 +76,9 @@ class LocalVLMBackend(EscalationBackend):
                 pass  # không có bitsandbytes thì chạy full precision
 
         self._model = _VLModel.from_pretrained(model_id, **model_kwargs)
-        self._processor = AutoProcessor.from_pretrained(model_id)
+        self._processor = AutoProcessor.from_pretrained(
+            model_id, min_pixels=min_pixels, max_pixels=max_pixels
+        )
 
     def _generate(self, image: np.ndarray, prompt: str) -> str:
         from PIL import Image

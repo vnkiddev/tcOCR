@@ -57,6 +57,17 @@ def get_engine(lang: str = "vi", use_angle: bool = True, det_only: bool = False)
         ) from e
 
     if paddle_version_major() >= 3:
+        if det_only:
+            # 3.x có module detection riêng — nhẹ hơn hẳn full pipeline
+            # (nếu không có thì fallback xuống full PaddleOCR bên dưới).
+            try:
+                from paddleocr import TextDetection
+
+                eng = TextDetection()
+                _INSTANCES[key] = eng
+                return eng
+            except Exception:
+                pass
         # API 3.x: bỏ use_angle_cls/show_log, tắt các module tiền xử lý cho nhẹ.
         eng = PaddleOCR(
             lang=lang,
@@ -80,11 +91,28 @@ def _poly_bbox(poly) -> Tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def _res_dict(res) -> dict:
+    """Chuẩn hóa kết quả predict() của 3.x về dict thuần.
+
+    Result của PaddleX thường là dict-subclass (truy cập trực tiếp được), nhưng
+    một số version bọc data trong res.json['res']. Cover cả hai cho chắc.
+    """
+    if isinstance(res, dict) and ("rec_texts" in res or "dt_polys" in res):
+        return res
+    j = getattr(res, "json", None)
+    if isinstance(j, dict):
+        inner = j.get("res", j)
+        if isinstance(inner, dict):
+            return inner
+    return res if isinstance(res, dict) else {}
+
+
 def run_ocr(engine, image: np.ndarray) -> List[Tuple[str, float, tuple]]:
     """Chạy detection+recognition, trả về [(text, conf, (x0,y0,x1,y1)), ...]."""
     out: List[Tuple[str, float, tuple]] = []
     if paddle_version_major() >= 3:
-        for res in engine.predict(image):
+        for raw in engine.predict(image):
+            res = _res_dict(raw)
             texts = res.get("rec_texts") or []
             scores = res.get("rec_scores") or []
             polys = res.get("rec_polys") or res.get("dt_polys") or []
@@ -110,7 +138,8 @@ def detect_boxes(engine, image: np.ndarray) -> List[tuple]:
     """Chỉ lấy box (cho VietOCR mượn detector). Trả về list (x0,y0,x1,y1)."""
     boxes: List[tuple] = []
     if paddle_version_major() >= 3:
-        for res in engine.predict(image):
+        for raw in engine.predict(image):
+            res = _res_dict(raw)
             for poly in res.get("dt_polys") or res.get("rec_polys") or []:
                 boxes.append(_poly_bbox(poly))
     else:

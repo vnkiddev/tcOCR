@@ -49,7 +49,15 @@ class CorrectionBackend(ABC):
     def correct(self, text: str, skip_numeric: bool = True) -> str:
         if not text or not text.strip():
             return text
-        if skip_numeric:
-            masked, tokens = mask_numeric(text)
-            return unmask_numeric(self._correct_raw(masked), tokens)
-        return self._correct_raw(text)
+        if not skip_numeric:
+            return self._correct_raw(text)
+
+        masked, tokens = mask_numeric(text)
+        corrected = self._correct_raw(masked)
+        # GUARDRAIL: tokenizer của model sửa lỗi có thể nghiền nát placeholder ⟦n⟧.
+        # Nếu bất kỳ placeholder nào không sống sót NGUYÊN VẸN đúng 1 lần trong
+        # output -> vứt kết quả sửa, giữ text gốc. Thà không sửa còn hơn mất số.
+        for i in range(len(tokens)):
+            if corrected.count(f"⟦{i}⟧") != 1:
+                return text
+        return unmask_numeric(corrected, tokens)

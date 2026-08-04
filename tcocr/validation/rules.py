@@ -18,6 +18,26 @@ from typing import List, Optional, Set
 from ..types import PageResult, RegionType, Table
 
 _TOTAL_KEYWORDS = ("tổng", "cộng", "total", "tổng cộng", "tổng số")
+
+
+def _fold_diacritics(s: str) -> str:
+    """'Tổng cộng' -> 'tong cong' — OCR hay mất dấu, phải match được cả dạng này."""
+    import unicodedata
+
+    return (
+        unicodedata.normalize("NFD", s.lower())
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+
+
+def _is_total_line(text: str) -> bool:
+    low = text.lower()
+    if any(k in low for k in _TOTAL_KEYWORDS):
+        return True
+    # dạng mất dấu: chỉ match từ an toàn ("tong", "total") — KHÔNG match "cong"
+    # trần vì "cộng" fold trùng với "công" (công ty) -> false positive
+    return bool(re.search(r"\btong\b|\btotal\b", _fold_diacritics(text)))
 _DATE_RE = re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b")
 _STOCK_RE = re.compile(r"\b[A-Z]{3}\b")
 
@@ -84,7 +104,7 @@ def _validate_table(table: Table, region_index: int, tol: float = 1.0) -> List[V
     # 2) kiểm dòng tổng khớp tổng các dòng phía trên (theo từng cột số)
     total_rows = [
         r for r, row in enumerate(grid)
-        if any(any(k in (cell or "").lower() for k in _TOTAL_KEYWORDS) for cell in row)
+        if any(_is_total_line(cell or "") for cell in row)
     ]
     for tr in total_rows:
         for c in range(len(grid[tr])):
@@ -104,6 +124,40 @@ def _validate_table(table: Table, region_index: int, tol: float = 1.0) -> List[V
     return flags
 
 
+_LINE_NUM_RE = re.compile(r"([-+(]?\d[\d.,]*\)?)\s*$")
+
+
+def _validate_text_lines(lines: List[str], region_index: int, tol: float = 1.0) -> List[ValidationFlag]:
+    """Sum-check trên TEXT lines — quan trọng khi layout/bảng TẮT (mặc định Colab).
+
+    Không có cấu trúc bảng thì mỗi dòng 'Chỉ tiêu ... 500.000' vẫn kết thúc bằng
+    một con số. Heuristic: dòng chứa 'tổng/cộng' có số cuối N -> so N với tổng
+    các số cuối dòng của các dòng liền trước (từ sau dòng tổng gần nhất).
+    Chỉ flag khi có >=2 số cộng dồn — hạn chế false positive.
+    """
+    flags: List[ValidationFlag] = []
+    acc: List[float] = []
+    for i, line in enumerate(lines):
+        m = _LINE_NUM_RE.search(line.strip())
+        val = parse_vn_number(m.group(1)) if m else None
+        is_total = _is_total_line(line)
+        if is_total and val is not None:
+            if len(acc) >= 2 and abs(sum(acc) - val) > tol:
+                flags.append(
+                    ValidationFlag(
+                        "sum_mismatch",
+                        f"dòng {i} ({line.strip()[:40]!r}): tổng khai báo {val} ≠ cộng dồn {sum(acc)}",
+                        region_index,
+                    )
+                )
+            acc = []  # reset sau mỗi dòng tổng
+        elif val is not None:
+            acc.append(val)
+        else:
+            acc = []  # dòng không có số cuối -> ngắt chuỗi cộng dồn
+    return flags
+
+
 def validate_page(
     page: PageResult, stock_whitelist: Optional[Set[str]] = None
 ) -> List[ValidationFlag]:
@@ -111,6 +165,10 @@ def validate_page(
     for idx, region in enumerate(page.regions):
         if region.region_type == RegionType.TABLE and region.table is not None:
             flags.extend(_validate_table(region.table, idx))
+        elif region.lines:
+            flags.extend(
+                _validate_text_lines([l.text for l in region.lines], idx)
+            )
 
         text = " ".join(l.text for l in region.lines)
 
